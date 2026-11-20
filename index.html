@@ -145,8 +145,43 @@ $s("bSign").onclick = async ()=>{
   catch(e){ console.error(e); status("⚠ sign-in failed: "+(e.code||e.message)); }
 };
 
+
+/* ===== Word-style editing toolbar for Seating Plan / Letters (iframe f2) ===== */
+function injectEditor(){
+  const d=FR.f2.contentDocument, w=FR.f2.contentWindow;
+  const bar=d.querySelector(".bar"); if(!bar||d.getElementById("fmt")) return;
+  const st=d.createElement("style");
+  st.textContent="#fmt{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px;align-items:center;background:#f3f6fb;padding:5px 6px;border-radius:6px;margin-top:2px}#fmt button,#fmt select{border:1px solid #9fb0d0;background:#fff;color:#0b2a5b;border-radius:4px;padding:4px 7px;font-weight:700;cursor:pointer;font-size:13px}#fmt button:hover{background:#dbe7ff}#fmt input[type=color]{padding:0;width:30px;height:26px;border:1px solid #9fb0d0;background:#fff}#fmt .sep{width:1px;height:22px;background:#9fb0d0;margin:0 3px}#fmt label{font-size:11px;color:#333}@media print{#fmt{display:none}}";
+  d.head.appendChild(st);
+  try{ d.execCommand("defaultParagraphSeparator",false,"div"); }catch(e){}
+  const F=d.createElement("div"); F.id="fmt"; bar.appendChild(F);
+  const touch=()=>{ const sel=w.getSelection(); let n=sel&&sel.anchorNode; n=n&&(n.nodeType===1?n:n.parentElement); const sh=n&&n.closest&&n.closest(".sheet"); if(sh) sh.dispatchEvent(new w.Event("input",{bubbles:true})); };
+  const ex=(c,v)=>{ d.execCommand(c,false,v||null); touch(); };
+  const blocks=()=>{ const s=w.getSelection(); if(!s.rangeCount) return []; const r=s.getRangeAt(0);
+    let a=[...d.querySelectorAll(".sheet[contenteditable] p,.sheet[contenteditable] div,.sheet[contenteditable] li")].filter(e=>r.intersectsNode(e)&&!e.querySelector("p,div,li"));
+    if(!a.length){ let n=s.anchorNode; n=n&&(n.nodeType===1?n:n.parentElement); const b=n&&n.closest&&n.closest("p,div,li"); if(b) a=[b]; } return a; };
+  const btn=(t,title,fn)=>{ const b=d.createElement("button"); b.innerHTML=t; b.title=title; b.onmousedown=e=>e.preventDefault(); b.onclick=fn; F.appendChild(b); return b; };
+  const sep=()=>{ const x=d.createElement("span"); x.className="sep"; F.appendChild(x); };
+  const sel=(title,opts,fn)=>{ const x=d.createElement("select"); x.title=title; x.innerHTML="<option value=''>"+title+"</option>"+opts.map(o=>"<option value='"+o[0]+"'>"+o[1]+"</option>").join(""); x.onchange=()=>{ if(x.value!==""){ fn(x.value); } x.selectedIndex=0; }; F.appendChild(x); return x; };
+
+  btn("↶","Undo (Ctrl+Z)",()=>ex("undo")); btn("↷","Redo (Ctrl+Y)",()=>ex("redo")); sep();
+  sel("Font",[["Segoe UI","Segoe UI"],["Arial","Arial"],["Times New Roman","Times New Roman"],["Calibri","Calibri"],["Cambria","Cambria"],["Verdana","Verdana"],["Courier New","Courier New"],["Nirmala UI","Bengali (Nirmala UI)"],["Vrinda","Bengali (Vrinda)"]],v=>ex("fontName",v));
+  sel("Size",[8,9,10,11,12,14,16,18,20,24,28,32,36,48,72].map(n=>[n,n+" pt"]),v=>{ d.execCommand("fontSize",false,"7"); d.querySelectorAll('font[size="7"]').forEach(f=>{ const sp=d.createElement("span"); sp.style.fontSize=v+"pt"; sp.innerHTML=f.innerHTML; f.replaceWith(sp); }); touch(); }); sep();
+  btn("<b>B</b>","Bold (Ctrl+B)",()=>ex("bold")); btn("<i>I</i>","Italic (Ctrl+I)",()=>ex("italic")); btn("<u>U</u>","Underline (Ctrl+U)",()=>ex("underline")); btn("<s>S</s>","Strikethrough",()=>ex("strikeThrough"));
+  btn("x<sub>2</sub>","Subscript",()=>ex("subscript")); btn("x<sup>2</sup>","Superscript",()=>ex("superscript")); sep();
+  const lc=d.createElement("label"); lc.innerHTML="A "; const ci=d.createElement("input"); ci.type="color"; ci.value="#000000"; ci.title="Text colour"; ci.onmousedown=()=>{}; ci.oninput=()=>ex("foreColor",ci.value); lc.appendChild(ci); F.appendChild(lc);
+  const lh=d.createElement("label"); lh.innerHTML="▮ "; const hi=d.createElement("input"); hi.type="color"; hi.value="#ffff00"; hi.title="Highlight"; hi.oninput=()=>ex("hiliteColor",hi.value); lh.appendChild(hi); F.appendChild(lh); sep();
+  btn("⇤","Align left",()=>ex("justifyLeft")); btn("⇔","Centre",()=>ex("justifyCenter")); btn("⇥","Align right",()=>ex("justifyRight")); btn("☰","Justify",()=>ex("justifyFull")); sep();
+  btn("• List","Bullets",()=>ex("insertUnorderedList")); btn("1. List","Numbering",()=>ex("insertOrderedList")); btn("→|","Increase indent",()=>ex("indent")); btn("|←","Decrease indent",()=>ex("outdent")); sep();
+  sel("Line spacing",[["1","1.0"],["1.15","1.15"],["1.3","1.3"],["1.5","1.5"],["2","2.0"]],v=>{ blocks().forEach(b=>b.style.lineHeight=v); touch(); });
+  sel("Para spacing",[["0","Tight (0)"],["4","Small (4 pt)"],["8","Normal (8 pt)"],["14","Wide (14 pt)"]],v=>{ blocks().forEach(b=>{ b.style.marginTop="0"; b.style.marginBottom=v+"pt"; }); touch(); });
+  btn("Tight ¶","Remove extra gaps between lines/paragraphs in the selection",()=>{ blocks().forEach(b=>{ b.style.margin="0"; b.style.lineHeight="1.35"; }); touch(); }); sep();
+  btn("Tx","Clear formatting",()=>ex("removeFormat")); btn("⎯","Insert horizontal line",()=>ex("insertHorizontalRule")); btn("🖨","Print",()=>w.print());
+  d.addEventListener("keydown",e=>{ if(e.key==="Tab"){ const n=e.target; if(n&&n.closest&&n.closest(".sheet[contenteditable]")){ e.preventDefault(); d.execCommand("insertHTML",false,"&emsp;&emsp;"); } } });
+}
+
 Object.values(FR).forEach(f=>f.addEventListener("load",()=>{
-  ready[f.id] = true;
+  ready[f.id] = true; if(f.id==="f2"){ try{ injectEditor(); }catch(e){ console.error(e); } }
   if(ready.f1 && ready.f2) boot();
 }));
 

@@ -151,7 +151,7 @@ function injectEditor(){
   const d=FR.f2.contentDocument, w=FR.f2.contentWindow;
   const bar=d.querySelector(".bar"); if(!bar||d.getElementById("fmt")) return;
   const st=d.createElement("style");
-  st.textContent="#fmt{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px;align-items:center;background:#f3f6fb;padding:5px 6px;border-radius:6px;margin-top:2px}#fmt button,#fmt select{border:1px solid #9fb0d0;background:#fff;color:#0b2a5b;border-radius:4px;padding:4px 7px;font-weight:700;cursor:pointer;font-size:13px}#fmt button:hover{background:#dbe7ff}#fmt input[type=color]{padding:0;width:30px;height:26px;border:1px solid #9fb0d0;background:#fff}#fmt .sep{width:1px;height:22px;background:#9fb0d0;margin:0 3px}#fmt label{font-size:11px;color:#333}@media print{#fmt{display:none}}";
+  st.textContent="#fmt{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px;align-items:center;background:#f3f6fb;padding:5px 6px;border-radius:6px;margin-top:2px}#fmt button,#fmt select{border:1px solid #9fb0d0;background:#fff;color:#0b2a5b;border-radius:4px;padding:4px 7px;font-weight:700;cursor:pointer;font-size:13px}#fmt button:hover{background:#dbe7ff}#fmt input[type=color]{padding:0;width:30px;height:26px;border:1px solid #9fb0d0;background:#fff}#fmt .sep{width:1px;height:22px;background:#9fb0d0;margin:0 3px}#fmt label{font-size:11px;color:#333}.sheet.let{border:0 !important;outline:0}@media print{#fmt{display:none}.sheet.let{border:0 !important;box-shadow:none}}";
   d.head.appendChild(st);
   try{ d.execCommand("defaultParagraphSeparator",false,"div"); }catch(e){}
   const F=d.createElement("div"); F.id="fmt"; bar.appendChild(F);

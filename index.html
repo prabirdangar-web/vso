@@ -180,8 +180,21 @@ function injectEditor(){
   d.addEventListener("keydown",e=>{ if(e.key==="Tab"){ const n=e.target; if(n&&n.closest&&n.closest(".sheet[contenteditable]")){ e.preventDefault(); d.execCommand("insertHTML",false,"&emsp;&emsp;"); } } });
 }
 
+
+/* ===== Packet labels: make the entered figures large and clear ===== */
+function injectLabels(){
+  const d=FR.f1.contentDocument; if(!d||d.getElementById("lblx")) return;
+  const st=d.createElement("style"); st.id="lblx";
+  st.textContent=".lab .bd{font-size:15px;gap:6px 18px}.lab .bd .big{font-size:27px;letter-spacing:.5px}.lab .bd .big span{font-size:46px;font-weight:900;color:#b91c1c;border-bottom:3px solid #b91c1c;padding:0 10px;margin-left:6px}.lab .bd .val{font-size:30px;font-weight:900;color:#1d4ed8;margin-left:6px}.lab .bd .b_app,.lab .bd .b_used,.lab .bd .b_unused{font-size:34px;font-weight:900;color:#b91c1c}.lab .bd div b{font-size:15px}.lab .bd .w.big b{font-size:inherit}";
+  d.head.appendChild(st);
+  d.querySelectorAll(".lab .bd > div:not(.w)").forEach(x=>{
+    const b=x.querySelector("b"); if(!b||!/allotted|received|appeared/i.test(b.textContent)) return;
+    [...x.childNodes].forEach(n=>{ if(n.nodeType===3 && n.textContent.trim()){ const sp=d.createElement("span"); sp.className="val"; sp.textContent=n.textContent.trim(); x.replaceChild(sp,n); } });
+  });
+}
+
 Object.values(FR).forEach(f=>f.addEventListener("load",()=>{
-  ready[f.id] = true; if(f.id==="f2"){ try{ injectEditor(); }catch(e){ console.error(e); } }
+  ready[f.id] = true; if(f.id==="f1"){ try{ injectLabels(); }catch(e){ console.error(e); } } if(f.id==="f2"){ try{ injectEditor(); }catch(e){ console.error(e); } }
   if(ready.f1 && ready.f2) boot();
 }));
 

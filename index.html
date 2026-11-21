@@ -47,34 +47,40 @@ function collect(){
   if(d1 && ready.f1){
     d1.querySelectorAll("input[id],textarea[id]").forEach(e=>{ STATE.inputs[e.id] = e.value; });
   }
-  if(d2 && ready.f2){
-    d2.querySelectorAll(".view").forEach(v=>{
+  [[d1,"f1"],[d2,"f2"]].forEach(([d,k])=>{
+    if(!d || !ready[k]) return;
+    d.querySelectorAll(".view").forEach(v=>{
       if(!v._dirty) return;
       v.querySelectorAll("input").forEach(i=>i.setAttribute("value", i.value));
+      v.querySelectorAll("textarea").forEach(t=>{ t.textContent = t.value; });
       STATE.views[v.id] = v.innerHTML;
     });
-  }
+  });
   STATE.ts = Date.now();
   return STATE;
 }
 
 function apply(s){
   applying = true;
-  const d1 = FR.f1.contentDocument, d2 = FR.f2.contentDocument;
-  if(d1 && s.inputs){
-    const first = ["app"];                       // restore master field first, then individual overrides
-    const ids = first.concat(Object.keys(s.inputs).filter(k=>!first.includes(k)));
-    ids.forEach(id=>{ const e=d1.getElementById(id); if(e && s.inputs[id]!==undefined) e.value = s.inputs[id]; });
-    const w = FR.f1.contentWindow;
-    try{ w.calc && w.calc(); w.sync && w.sync(); }catch(e){}
-  }
-  if(d2 && s.views){
+  const d1 = FR.f1.contentDocument, d2 = FR.f2.contentDocument, w1 = FR.f1.contentWindow;
+  if(s.views){
     Object.keys(s.views).forEach(id=>{
-      const v = d2.getElementById(id); if(!v) return;
+      const v = (d1 && d1.getElementById(id)) || (d2 && d2.getElementById(id));
+      if(!v || !v.classList.contains("view")) return;
       v.innerHTML = s.views[id];
       v._dirty = true;
       v.querySelectorAll(".sheet").forEach(x=>{x.contentEditable="true"; x.spellcheck=false});
     });
+  }
+  if(d1 && s.inputs){
+    try{
+      ["inv","rel","trn"].forEach(i=>{ const e=d1.getElementById(i); if(e && w1.calc) e.addEventListener("input", w1.calc); });
+      ["f_app","f_used","f_unused"].forEach(i=>{ const e=d1.getElementById(i); if(e && w1.sync) e.addEventListener("input", w1.sync); });
+    }catch(e){}
+    const first = ["app"];
+    const ids = first.concat(Object.keys(s.inputs).filter(k=>!first.includes(k)));
+    ids.forEach(id=>{ const e=d1.getElementById(id); if(e && s.inputs[id]!==undefined) e.value = s.inputs[id]; });
+    try{ w1.calc && w1.calc(); w1.sync && w1.sync(); }catch(e){}
   }
   STATE = {ts:s.ts||0, inputs:Object.assign({},s.inputs), views:Object.assign({},s.views)};
   applying = false;
@@ -93,7 +99,7 @@ function queue(){ if(applying) return; clearTimeout(timer); status("…typing");
 
 function hook(){
   const d1 = FR.f1.contentDocument, d2 = FR.f2.contentDocument;
-  d1.addEventListener("input", queue);
+  d1.addEventListener("input", e=>{ const t=e.target; if(t && t.tagName!=="INPUT" && t.tagName!=="TEXTAREA"){ const v=t.closest && t.closest(".view"); if(v) v._dirty = true; } queue(); });
   d2.addEventListener("input", e=>{ const v=e.target.closest && e.target.closest(".view"); if(v) v._dirty = true; queue(); });
 }
 
@@ -147,13 +153,15 @@ $s("bSign").onclick = async ()=>{
 
 
 /* ===== Word-style editing toolbar for Seating Plan / Letters (iframe f2) ===== */
-function injectEditor(){
-  const d=FR.f2.contentDocument, w=FR.f2.contentWindow;
+function injectEditor(fr){
+  const d=fr.contentDocument, w=fr.contentWindow;
   const bar=d.querySelector(".bar"); if(!bar||d.getElementById("fmt")) return;
   const st=d.createElement("style");
   st.textContent="#fmt{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px;align-items:center;background:#f3f6fb;padding:5px 6px;border-radius:6px;margin-top:2px}#fmt button,#fmt select{border:1px solid #9fb0d0;background:#fff;color:#0b2a5b;border-radius:4px;padding:4px 7px;font-weight:700;cursor:pointer;font-size:13px}#fmt button:hover{background:#dbe7ff}#fmt input[type=color]{padding:0;width:30px;height:26px;border:1px solid #9fb0d0;background:#fff}#fmt .sep{width:1px;height:22px;background:#9fb0d0;margin:0 3px}#fmt label{font-size:11px;color:#333}.sheet.let{border:0 !important;outline:0}@media print{#fmt{display:none}.sheet.let{border:0 !important;box-shadow:none}}";
   d.head.appendChild(st);
   try{ d.execCommand("defaultParagraphSeparator",false,"div"); }catch(e){}
+  d.querySelectorAll(".view:not([id])").forEach((v,i)=>v.id="vtop"+(i||""));
+  d.querySelectorAll(".sheet").forEach(x=>{x.contentEditable="true";x.spellcheck=false});
   const F=d.createElement("div"); F.id="fmt"; bar.appendChild(F);
   const touch=()=>{ const sel=w.getSelection(); let n=sel&&sel.anchorNode; n=n&&(n.nodeType===1?n:n.parentElement); const sh=n&&n.closest&&n.closest(".sheet"); if(sh) sh.dispatchEvent(new w.Event("input",{bubbles:true})); };
   const ex=(c,v)=>{ d.execCommand(c,false,v||null); touch(); };
@@ -194,7 +202,7 @@ function injectLabels(){
 }
 
 Object.values(FR).forEach(f=>f.addEventListener("load",()=>{
-  ready[f.id] = true; if(f.id==="f1"){ try{ injectLabels(); }catch(e){ console.error(e); } } if(f.id==="f2"){ try{ injectEditor(); }catch(e){ console.error(e); } }
+  ready[f.id] = true; if(f.id==="f1"){ try{ injectLabels(); }catch(e){ console.error(e); } } try{ injectEditor(f); }catch(e){ console.error(e); }
   if(ready.f1 && ready.f2) boot();
 }));
 

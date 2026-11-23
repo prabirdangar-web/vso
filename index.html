@@ -80,7 +80,7 @@ function apply(s){
       if(!v || !v.classList.contains("view")) return;
       v.innerHTML = s.views[id];
       v._dirty = true;
-      v.querySelectorAll(".sheet").forEach(x=>{x.contentEditable="true"; x.spellcheck=false});
+      setEditable(v.ownerDocument);
     });
   }
   if(d1 && s.inputs){
@@ -113,6 +113,7 @@ function queue(){ if(applying) return; clearTimeout(timer); status("…typing");
 
 function hook(){
   const d1 = FR.f1.contentDocument, d2 = FR.f2.contentDocument;
+  [d1,d2,FR.f3.contentDocument].forEach(dd=>dd.addEventListener("mousedown",()=>setEditable(dd),true));
   d1.addEventListener("input", e=>{ const t=e.target; if(t && t.tagName!=="INPUT" && t.tagName!=="TEXTAREA"){ const v=t.closest && t.closest(".view"); if(v) v._dirty = true; } queue(); });
   FR.f3.contentDocument.addEventListener("input", ()=>queue());
   d2.addEventListener("input", e=>{ const v=e.target.closest && e.target.closest(".view"); if(v) v._dirty = true; queue(); });
@@ -176,7 +177,7 @@ function injectEditor(fr){
   d.head.appendChild(st);
   try{ d.execCommand("defaultParagraphSeparator",false,"div"); }catch(e){}
   d.querySelectorAll(".view:not([id])").forEach((v,i)=>v.id="vtop"+(i||""));
-  d.querySelectorAll(".sheet").forEach(x=>{x.contentEditable="true";x.spellcheck=false});
+  setEditable(d);
   const F=d.createElement("div"); F.id="fmt"; bar.appendChild(F);
   const touch=()=>{ const sel=w.getSelection(); let n=sel&&sel.anchorNode; n=n&&(n.nodeType===1?n:n.parentElement); const sh=n&&n.closest&&n.closest(".sheet"); if(sh) sh.dispatchEvent(new w.Event("input",{bubbles:true})); };
   const ex=(c,v)=>{ d.execCommand(c,false,v||null); touch(); };
@@ -228,6 +229,37 @@ function injectFit(){
   w.addEventListener("beforeprint",fit); fit(); setTimeout(fit,300);
 }
 
+
+/* ===== field-level editing =====
+   Sheets that contain many <input> boxes (bills, forms, roll) are NOT made one big
+   contenteditable block (inputs inside it misbehave in several browsers).
+   Instead every text label / cell / empty cell is editable on its own and the
+   input boxes stay normal inputs. Plain sheets (letters, lists, stickers) stay whole-sheet editable. */
+const LEAF_SKIP=/^(INPUT|TEXTAREA|SELECT|BUTTON|SCRIPT|STYLE|OPTION|DATALIST|LABEL)$/;
+function leafWalk(el){
+  if(LEAF_SKIP.test(el.tagName) && el.tagName!=="LABEL") return;
+  if(el.hasAttribute("contenteditable") || el.classList.contains("tools")) return;
+  const d=el.ownerDocument, hasIn=!!el.querySelector("input,textarea,select");
+  const direct=[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim());
+  if(!hasIn){
+    if(direct || (/^(TD|TH)$/.test(el.tagName) && !el.children.length)){ el.setAttribute("contenteditable","true"); return; }
+  }else{
+    [...el.childNodes].forEach(n=>{ if(n.nodeType===3&&n.textContent.trim()){ const sp=d.createElement("span"); sp.setAttribute("contenteditable","true"); n.replaceWith(sp); sp.appendChild(n); } });
+  }
+  [...el.children].forEach(leafWalk);
+}
+function setEditable(d){
+  if(!d||!d.body) return;
+  d.body.spellcheck=false;
+  d.querySelectorAll(".sheet").forEach(sh=>{
+    sh.spellcheck=false;
+    if(sh.querySelectorAll("input,textarea,select").length>=3){
+      if(sh.getAttribute("contenteditable")==="true") sh.removeAttribute("contenteditable");
+      [...sh.children].forEach(leafWalk);
+    }else{ sh.contentEditable="true"; }
+  });
+}
+
 /* ===== compact toolbars + no-background forms (all frames) ===== */
 function injectUI(f){
   const d=f.contentDocument; if(!d||d.getElementById("uix")) return;
@@ -246,7 +278,12 @@ body.focus #fmt{display:none !important}
 .hd,.hd *,.h2,.h2 *,.ch,.ch *,.card .a,.lab .tt,.st .th,.sc small,.rl .sec td,.rl .gt td,.rm td,.top .foot,.list .foot{color:#0b2a5b !important}
 .top .hd,.list .hd,.doc .h2,.hd,.card .a,.lab .tt,.st .th,.sc small,.ch{border-bottom:2px solid #0b2a5b !important}
 .top .foot,.list .foot{border-top:2px solid #0b2a5b !important}
-@media print{body{zoom:1 !important}}`;
+[contenteditable="true"]:not(.sheet):hover{outline:1px dashed #c8962a;outline-offset:1px}
+[contenteditable="true"]:not(.sheet):focus{outline:1px solid #1d4ed8;outline-offset:1px}
+.doc .kv input{min-width:0}
+#conf span[style*="nowrap"]{white-space:normal !important}
+#conf .kv[style*="margin-left:14px"]{flex-wrap:wrap}
+@media print{body{zoom:1 !important}[contenteditable]{outline:none !important}}`;
   d.head.appendChild(st);
   if(document.body.classList.contains("focus")) d.body.classList.add("focus");
 }
